@@ -31,12 +31,12 @@ void receiveMessages(int clientSocket, std::atomic<bool>& shutdown) {
         memset(buffer, 0, sizeof(buffer));
         int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
         if (bytesRead <= 0) {
-            std::cout << "\n[Server Disconnected] Press Enter to exit." << std::endl;
+            std::cout << "\n(Orge) [Simple Client] [Server Disconnected] Press Enter to exit." << std::endl;
             shutdown = true;
             break;
         }
         std::string message(buffer, bytesRead);
-        std::cout << "\n[Broadcast Message] " << message << std::endl;
+        std::cout << "\n(Orge) [Simple Client] [Broadcast Message] " << message << std::endl;
         std::cout << "> "; // Reprint the prompt
         std::cout.flush();
     }
@@ -46,14 +46,14 @@ int main() {
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "WSAStartup failed." << std::endl;
+        std::cerr << "(Orge) [Simple Client] WSAStartup failed." << std::endl;
         return 1;
     }
 #endif
 
     int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket < 0) {
-        std::cerr << "Socket creation failed." << std::endl;
+        std::cerr << "(Orge) [Simple Client] Socket creation failed." << std::endl;
         return 1;
     }
 
@@ -67,12 +67,12 @@ int main() {
     #endif
 
     if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
-        std::cerr << "Connection failed." << std::endl;
+        std::cerr << "(Orge) [Simple Client] Connection failed." << std::endl;
         return 1;
     }
 
-    std::cout << "Connected to C++ broadcast server. You can send commands now." << std::endl;
-    std::cout << "Format: x y z value (e.g., 10 20 30 liquid)" << std::endl;
+    std::cout << "(Orge) [Simple Client] Connected to C++ broadcast server. You can send commands now." << std::endl;
+    std::cout << "(Orge) [Simple Client] Format: x y z value (e.g., 10 20 30 liquid)" << std::endl;
     
     std::atomic<bool> shutdown(false);
     std::thread receiverThread(receiveMessages, clientSocket, std::ref(shutdown));
@@ -86,9 +86,7 @@ int main() {
         std::cin >> x >> y >> z >> value;
         
         if (std::cin.fail()) {
-            std::cout << "Invalid input. Exiting." << std::endl;
-            shutdown = true;
-            break;
+            std::cout << "(Orge) [Simple Client] Invalid input." << std::endl;
         }
 
         json blockChangeMessage;
@@ -115,3 +113,4 @@ int main() {
 
     return 0;
 }
+//g++ SimpleClient.cpp -o SimpleClient -lws2_32 -std=c++11 -Isrc/Include

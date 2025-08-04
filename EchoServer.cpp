@@ -37,7 +37,7 @@ void handleClientConnection(int clientSocket) {
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
         clients.push_back(clientSocket);
-        std::cout << "Client " << clientSocket << " connected. Total clients: " << clients.size() << std::endl;
+        std::cout << "(Orge) [Echo Server] Client " << clientSocket << " connected. Total clients: " << clients.size() << std::endl;
     }
 
     char buffer[1024] = {0};
@@ -56,7 +56,7 @@ void handleClientConnection(int clientSocket) {
             std::lock_guard<std::mutex> lock(clientsMutex);
             for (int otherClientSocket : clients) {
                 if (otherClientSocket != clientSocket) {
-                    std::cout << "Broadcasting from " << clientSocket << " to " << otherClientSocket << ": " << message << std::endl;
+                    std::cout << "(Orge) [Echo Server] Broadcasting from " << clientSocket << " to " << otherClientSocket << ": " << message << std::endl;
                     send(otherClientSocket, message.c_str(), message.length(), 0);
                 }
             }
@@ -72,7 +72,7 @@ void handleClientConnection(int clientSocket) {
                 break;
             }
         }
-        std::cout << "Client " << clientSocket << " disconnected. Total clients: " << clients.size() << std::endl;
+        std::cout << "(Orge) [Echo Server] Client " << clientSocket << " disconnected. Total clients: " << clients.size() << std::endl;
     }
 
 #ifdef _WIN32
@@ -86,14 +86,14 @@ int main() {
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "WSAStartup failed." << std::endl;
+        std::cerr << "(Orge) [Echo Server] WSAStartup failed." << std::endl;
         return 1;
     }
 #endif
 
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0) {
-        std::cerr << "Socket creation failed." << std::endl;
+        std::cerr << "(Orge) [Echo Server] Socket creation failed." << std::endl;
         return 1;
     }
 
@@ -103,19 +103,19 @@ int main() {
     serverAddr.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
-        std::cerr << "Bind failed." << std::endl;
+        std::cerr << "(Orge) [Echo Server] Bind failed." << std::endl;
         return 1;
     }
 
     listen(serverSocket, 5); // Listen for up to 5 pending connections
-    std::cout << "C++ broadcast server listening on port 6969..." << std::endl;
+    std::cout << "(Orge) [Echo Server]  C++ Echo server listening on port 6969..." << std::endl;
     
     while (true) {
         sockaddr_in clientAddr;
         socklen_t clientSize = sizeof(clientAddr);
         int clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientSize);
         if (clientSocket < 0) {
-            std::cerr << "Accept failed." << std::endl;
+            std::cerr << "(Orge) [Echo Server] Accept failed." << std::endl;
             continue;
         }
 
@@ -133,4 +133,4 @@ int main() {
 
     return 0;
 }
-//g++ SimServer.cpp -o server -lws2_32 -std=c++11 -Isrc/Include
+//g++ EchoServer.cpp -o EchoServer -lws2_32 -std=c++11 -Isrc/Include
