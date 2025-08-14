@@ -1,0 +1,17 @@
+world
+ |_ 0: overworld
+ |_ 1: nether
+ |_ 2: end
+ |_ 3: other
+type
+ |_ 0: block
+ |_ 1: chunk
+x
+y
+z
+action
+ |_ 0: set_state
+ |_ 1: load_chunk
+ |_ 2: unload_chunk
+key
+value

@@ -1,0 +1,12 @@
+{
+    "world": "minecraft:overworld",
+    "type": "block",
+    "location": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+    },
+    "action": "set_state",
+    "key": "",
+    "value": "solid"
+}

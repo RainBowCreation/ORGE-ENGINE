@@ -50,13 +50,14 @@ void handleClientConnection(int clientSocket) {
         }
 
         std::string message(buffer, bytesRead);
-        
+
+        //std::cout << "(Orge) [Echo Server] Received from " << clientSocket << std::endl;
         // Broadcast the received message to all other clients
         {
             std::lock_guard<std::mutex> lock(clientsMutex);
             for (int otherClientSocket : clients) {
                 if (otherClientSocket != clientSocket) {
-                    std::cout << "(Orge) [Echo Server] Broadcasting from " << clientSocket << " to " << otherClientSocket << ": " << message << std::endl;
+                    std::cout << "(Orge) [Echo Server] Broadcasting from " << clientSocket << " to " << otherClientSocket << std::endl;
                     send(otherClientSocket, message.c_str(), message.length(), 0);
                 }
             }
