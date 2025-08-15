@@ -153,10 +153,9 @@ static inline void init_view_from_world(WorldView& v, const World& world) {
     }
 }
 static inline std::string fmt_ms(double ms) {
-    if (ms <= 0.0) return "0.000 ms";
-    if (ms < 0.001) return "<0.001 ms";
+    if (ms < 0.001) return "<0.001";
     char buf[32];
-    std::snprintf(buf, sizeof(buf), "%.3f ms", ms);
+    std::snprintf(buf, sizeof(buf), "%.2f", ms);
     return std::string(buf);
 }
 
@@ -333,8 +332,8 @@ static inline int run_world_ui(SimServer& server) {
     {
         std::unique_lock<std::mutex> lk(server.worldMutex);
         if (server.world.materials.table.empty()) {
-            server.world.materials.add(Material{0,0,0});                 // 0 = void
-            server.world.materials.add(Material{500.0f,100.0f,1000.0f}); // 1 = generic solid
+            server.world.materials.add(Material{0, 0, 0, 0});                    // 0 = void
+            server.world.materials.add(Material{500.0f, 100.0f, 1000.0f, 0.05f}); // 1 = generic solid
         }
         init_view_from_world(*(new WorldView), server.world); // dummy to pre-touch; real init below
         recomputeAllSectionLoaded(server.world);
@@ -436,6 +435,7 @@ static inline int run_world_ui(SimServer& server) {
                         const int i = idx(x,y,z);
                         C->T_curr[i] = Tval; C->T_next[i] = Tval;
                         C->matIx[i] = SOLID_IX; // mark as solid => section loaded
+                        C->mass_kg[i]= server.world.materials.byIx(SOLID_IX).defaultMass;
                     };
 
                     if (!allLayers) {

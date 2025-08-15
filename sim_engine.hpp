@@ -27,10 +27,12 @@ inline int idx(int x, int y, int z) { return x + y*CHUNK_W + z*CHUNK_W*CHUNK_H; 
 struct Material {
     float heatCapacity;        // J/(kg*K)
     float thermalConductivity; // W/(m*K)
-    float density;             // kg/m^3
+    float defaultMass;         // kg per cell (cell is 1 m^3)
+    float molarMass;           // kg/mol
 };
+
 struct MaterialLUT {
-    std::vector<Material> table;        // small (few types)
+    std::vector<Material> table;
     uint16_t add(const Material& m) {
         table.push_back(m);
         return static_cast<uint16_t>(table.size()-1);
@@ -43,16 +45,16 @@ struct MaterialLUT {
 
 // ====== Chunk ======
 struct Chunk {
-    // cell maps
     std::array<uint16_t, CHUNK_N> matIx{};  // material index per cell (0=void recommended)
 
-    // NOTE: vectors to allow O(1) pointer swap under a tiny lock
+    // Temperatures
     std::vector<float> T_curr; // K (front buffer)
     std::vector<float> T_next; // K (back buffer)
 
-    uint16_t void_ix = 0; // material index treated as "void" (not rendered / not simulated)
+    // NEW: mass map (kg per 1 m^3 cell)
+    std::vector<float> mass_kg;
 
-    // world location (chunk coords, NOT world-cell coords)
+    uint16_t void_ix = 0;
     int cx = 0;
     int cz = 0;
 
@@ -66,6 +68,7 @@ struct Chunk {
     Chunk()
         : T_curr(CHUNK_N, 0.0f)
         , T_next(CHUNK_N, 0.0f)
+        , mass_kg(CHUNK_N, 0.0f)
     {
         section_ms_last.fill(0.0);
         sectionLoaded.fill(0);
@@ -151,11 +154,11 @@ inline NeighborSample sample_neighbor_T(const World& world, const Chunk& C, int 
     return NeighborSample{ CC->T_curr[i], CC->matIx[i], true };
 }
 
-// ====== SIMULATION CORE (per section, writes only T_next) ======
+// ====== SIMULATION CORE ======
 inline void simulate_section_16x16x16(World& world, Chunk& C, const MaterialLUT& mats, int sy, float dt_seconds) {
     const int y0 = sy * SECTION_EDGE;
-    const int y1 = y0 + SECTION_EDGE; // exclusive
-    constexpr float inv_dx2 = 1.0f; // 1 / (dx*dx) with dx=1
+    const int y1 = y0 + SECTION_EDGE;
+    constexpr float inv_dx2 = 1.0f;
 
     for (int z=0; z<CHUNK_D; ++z) {
         for (int y=y0; y<y1; ++y) {
@@ -165,7 +168,8 @@ inline void simulate_section_16x16x16(World& world, Chunk& C, const MaterialLUT&
                 if (mix == C.void_ix) { C.T_next[i] = C.T_curr[i]; continue; }
 
                 const Material& m  = mats.byIx(mix);
-                const float Cvol   = std::max(1e-8f, m.density * m.heatCapacity);
+                // Thermal capacity of this cell = mass(kg) * heatCapacity(J/kg*K)
+                const float Cth    = std::max(1e-8f, C.mass_kg[i] * m.heatCapacity);
                 const float Tc     = C.T_curr[i];
 
                 NeighborSample nb[6] = {
@@ -183,15 +187,19 @@ inline void simulate_section_16x16x16(World& world, Chunk& C, const MaterialLUT&
                     const Material& mn = mats.byIx(nb[n].mix);
                     const float k1 = m.thermalConductivity, k2 = mn.thermalConductivity;
                     float k_eff = 0.0f;
-                    if (k1 > 0.0f && k2 > 0.0f) k_eff = 2.0f * k1 * k2 / (k1 + k2);
-                    else                        k_eff = std::max(k1, k2);
+                    //if (k1 > 0.0f && k2 > 0.0f) k_eff = 2.0f * k1 * k2 / (k1 + k2);
+                    //else                        k_eff = std::max(k1, k2);
+                    if (k1 <= 0.0f || k2 <= 0.0f) {
+                        k_eff = 0.0f;
+                    } else {
+                        k_eff = 2.0f * k1 * k2 / (k1 + k2);
+                    }
                     dT += (k_eff * (nb[n].T - Tc)) * inv_dx2;
                 }
 
-                float Tnew = Tc + (dt_seconds / Cvol) * dT;
+                float Tnew = Tc + (dt_seconds / Cth) * dT;
                 if      (Tnew <   0.0f) Tnew = 0.0f;
                 else if (Tnew > 6000.0f) Tnew = 6000.0f;
-
                 C.T_next[i] = Tnew;
             }
         }
@@ -234,18 +242,21 @@ inline void step_frame(World& world, float dt_seconds) {
     swap_all_backbuffers(world);
 }
 
-// Fill one entire 16x16x16 section with a single material+temperature.
-inline void fill_section_with(Chunk& C, uint16_t mat_ix, float T, int sy) {
+// ====== Fill one entire 16x16x16 section ======
+// NOTE: now needs mats to set per-voxel mass to material.defaultMass when unspecified.
+inline void fill_section_with(Chunk& C, uint16_t mat_ix, float T, int sy, const MaterialLUT& mats) {
     if (sy < 0 || sy >= SECTIONS_Y) return;
+    const float mdef = mats.byIx(mat_ix).defaultMass;
     const int y0 = sy * SECTION_EDGE;
     const int y1 = y0 + SECTION_EDGE;
     for (int z = 0; z < CHUNK_D; ++z) {
         for (int y = y0; y < y1; ++y) {
             for (int x = 0; x < CHUNK_W; ++x) {
                 const int i = idx(x,y,z);
-                C.matIx[i]  = mat_ix;
-                C.T_curr[i] = T;
-                C.T_next[i] = T;
+                C.matIx[i]   = mat_ix;
+                C.T_curr[i]  = T;
+                C.T_next[i]  = T;
+                C.mass_kg[i] = (mat_ix == C.void_ix) ? 0.0f : mdef;
             }
         }
     }
